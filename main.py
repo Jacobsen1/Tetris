@@ -1,3 +1,4 @@
+#!/usr/bin/python3 
 import sys
 import pygame as pg
 from Figures import Figures
@@ -30,7 +31,6 @@ def check_events(event, x, y, fig_mat):
     elif event.scancode == 82 and game.check_collision(x, y, figures.get_next_fig_mat(), "ROTATE"):
         fig_mat = figures.rotate()
         game.rotate(x, y, fig_mat)
-        print("rotate")
     elif event.scancode == 41:
         pg.quit()
     return x, y, fig_mat
@@ -47,11 +47,12 @@ while not done:
     clock.tick(30)
     if fall_time/1000 > fall_speed:
         fall_time = 0
-        #x, y = game.update_fig(x, y, fig_mat, "DOWN")
+        x, y = game.update_fig(x, y, fig_mat, "DOWN")
     if(x == -1 and y == -1):
+        print("Start")
         game.set_new_color()
         x, y, fig_mat = figures.select_figure()
-
+        game.set_figure(x, y, fig_mat)
     for event in pg.event.get():
         if event.type == pg.QUIT:
             done = True
@@ -62,12 +63,13 @@ while not done:
     if not game.check_collision(x, y, fig_mat):
         game.set_new_color()
         x, y, fig_mat = figures.select_figure()
+        game.set_figure(x, y, fig_mat)
     
     #Starts drawing
     screen.fill(BLACK) 
-    game.draw_outlines(x, y, fig_mat)
-    game.draw(screen)
     
+    game.draw(screen)
+    game.draw_outlines(x, y, fig_mat)
     pg.display.flip()
 
 

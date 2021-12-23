@@ -132,14 +132,11 @@ class Figures:
         self.current_rot = 0
 
     def select_figure(self):
-        print("Selecting figure")
-
         self.current_letter = rnd.choice(list(figure_matrices.keys()))
         self.current_rot = 0
         return 0, 5, figure_matrices[self.current_letter][self.current_rot]
 
     def rotate(self):
-        #old_fig_mat = figure_matrices[self.current_letter][self.current_rot]
         self.current_rot += 1
         self.current_rot %= len(figure_matrices[self.current_letter])
         return figure_matrices[self.current_letter][self.current_rot]
