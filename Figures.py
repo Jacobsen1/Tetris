@@ -129,10 +129,12 @@ class Figures:
     def __init__(self) -> None:
         self.finished_figures = []
         self.current_letter = ''
+        self.next_letter = rnd.choice(list(figure_matrices.keys()))
         self.current_rot = 0
 
     def select_figure(self):
-        self.current_letter = rnd.choice(list(figure_matrices.keys()))
+        self.current_letter = self.next_letter
+        self.next_letter = rnd.choice(list(figure_matrices.keys()))
         self.current_rot = 0
         return 0, 5, figure_matrices[self.current_letter][self.current_rot]
 
@@ -143,3 +145,6 @@ class Figures:
 
     def get_next_fig_mat(self):
         return figure_matrices[self.current_letter][(self.current_rot + 1) % len(figure_matrices[self.current_letter])]
+
+    def get_next_fig(self):
+        return figure_matrices[self.next_letter][0]
