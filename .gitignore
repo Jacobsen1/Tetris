@@ -130,3 +130,6 @@ dmypy.json
 
 #custom
 test.py
+
+# UI test output
+test-results/

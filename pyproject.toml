@@ -1,0 +1,13 @@
+[project]
+name = "tetris"
+version = "0.1.0"
+description = "Tetris clone built with pygame-ce"
+requires-python = ">=3.15"
+dependencies = ["pygame-ce==2.5.8"]
+
+[dependency-groups]
+dev = ["pytest==9.2.0"]
+
+[tool.pytest]
+testpaths = ["tests"]
+filterwarnings = ["ignore:The system font .* couldn't be found:UserWarning"]
