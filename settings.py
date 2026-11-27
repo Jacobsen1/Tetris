@@ -1,6 +1,3 @@
-from sys import set_coroutine_origin_tracking_depth
-
-
 class game_states:
     CURRENT = 0
     PLAYING = 0
