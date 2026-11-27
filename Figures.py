@@ -1,7 +1,4 @@
-import pygame as pg
 import random as rnd
-
-GREEN = (0, 255,   0)
 
 figure_matrices = {
     "I": [
@@ -124,27 +121,31 @@ figure_matrices = {
 }
 
 
+LETTERS = list(figure_matrices)
+
+
 class Figures:
     def __init__(self, rng=None) -> None:
         self.rng = rng or rnd.Random()
-        self.finished_figures = []
         self.current_letter = ''
-        self.next_letter = self.rng.choice(list(figure_matrices.keys()))
+        self.next_letter = self.rng.choice(LETTERS)
         self.current_rot = 0
 
     def select_figure(self):
         self.current_letter = self.next_letter
-        self.next_letter = self.rng.choice(list(figure_matrices.keys()))
+        self.next_letter = self.rng.choice(LETTERS)
         self.current_rot = 0
         return 0, 5, figure_matrices[self.current_letter][self.current_rot]
 
     def rotate(self):
-        self.current_rot += 1
-        self.current_rot %= len(figure_matrices[self.current_letter])
+        self.current_rot = self._next_rot()
         return figure_matrices[self.current_letter][self.current_rot]
 
+    def _next_rot(self):
+        return (self.current_rot + 1) % len(figure_matrices[self.current_letter])
+
     def get_next_fig_mat(self):
-        return figure_matrices[self.current_letter][(self.current_rot + 1) % len(figure_matrices[self.current_letter])]
+        return figure_matrices[self.current_letter][self._next_rot()]
 
     def get_next_fig(self):
         return figure_matrices[self.next_letter][0]
