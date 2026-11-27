@@ -10,3 +10,4 @@ dev = ["pytest==9.2.0"]
 
 [tool.pytest]
 testpaths = ["tests"]
+filterwarnings = ["ignore:The system font .* couldn't be found:UserWarning"]
