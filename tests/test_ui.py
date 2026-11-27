@@ -3,15 +3,14 @@
 import os
 import subprocess
 import sys
-import time
 
 import pygame as pg
 import pytest
 
 import settings
-from conftest import ROOT
+from conftest import ROOT, post_key
 
-BOTTOM = 23  # last board row (settings.BOARD_HEIGHT - 1)
+BOTTOM = settings.BOARD_HEIGHT - 1
 
 
 def rows(cells):
@@ -29,8 +28,8 @@ def test_app_process_starts_and_keeps_running():
     proc = subprocess.Popen([sys.executable, "main.py"], cwd=ROOT, env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
-        time.sleep(3)
-        assert proc.poll() is None, proc.communicate()[1].decode()
+        with pytest.raises(subprocess.TimeoutExpired):  # still running = started fine
+            proc.wait(timeout=2)
     finally:
         proc.kill()
         proc.wait()
@@ -52,8 +51,7 @@ def test_first_piece_spawns_at_top_and_is_rendered(game):
 
 
 def test_next_piece_preview_is_drawn(game):
-    from game import colors
-    next_color = colors[(game.app.game.color_ind + 1) % len(colors)]
+    next_color = game.app.game.next_color
     surface = pg.display.get_surface()
     panel = range(settings.GAME_WIDTH, settings.WINDOW_WIDTH)
     found = any(tuple(surface.get_at((x, y)))[:3] == next_color
@@ -135,13 +133,12 @@ def test_piece_lands_by_falling_and_next_piece_spawns(game):
 def test_completed_line_is_cleared_and_stack_shifts_down(make_game):
     game = make_game("IO")
     core = game.app.game
-    size = settings.CELL_SIZE
 
     def fill(r, c):
         core.grid[r][c].is_fig = True
         core.grid[r][c].placed = True
         core.grid[r][c].border = 0
-        core.finished_figures.append(pg.Rect(r * size, c * size, size, size))
+        core.finished_figures.append(core.cell_rect(r, c))
 
     # bottom row full except the four columns the I piece will drop into
     for c in [0, 1, 2, 3, 4, 9, 10, 11]:
@@ -186,7 +183,7 @@ def test_closing_window_quits(game):
 
 @pytest.mark.parametrize("key", [pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN, pg.K_UP, pg.K_SPACE])
 def test_run_loop_exits_cleanly_after_input(game, key):
-    pg.event.post(pg.event.Event(pg.KEYDOWN, key=key, mod=0, unicode="", scancode=0))
-    pg.event.post(pg.event.Event(pg.KEYDOWN, key=pg.K_ESCAPE, mod=0, unicode="", scancode=0))
+    post_key(key)
+    post_key(pg.K_ESCAPE)
     game.app.run()  # returns once ESC is processed
     assert not pg.display.get_init()
