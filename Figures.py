@@ -125,15 +125,16 @@ figure_matrices = {
 
 
 class Figures:
-    def __init__(self) -> None:
+    def __init__(self, rng=None) -> None:
+        self.rng = rng or rnd.Random()
         self.finished_figures = []
         self.current_letter = ''
-        self.next_letter = rnd.choice(list(figure_matrices.keys()))
+        self.next_letter = self.rng.choice(list(figure_matrices.keys()))
         self.current_rot = 0
 
     def select_figure(self):
         self.current_letter = self.next_letter
-        self.next_letter = rnd.choice(list(figure_matrices.keys()))
+        self.next_letter = self.rng.choice(list(figure_matrices.keys()))
         self.current_rot = 0
         return 0, 5, figure_matrices[self.current_letter][self.current_rot]
 
