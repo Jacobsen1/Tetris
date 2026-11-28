@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import asyncio
+
 import pygame as pg
 
 from Fig import EMPTY_COLOR
@@ -141,15 +143,18 @@ class TetrisApp:
                 if event.type == pg.QUIT or (event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE):
                     self.state = settings.GAME_STATE.QUIT
 
-    def run(self):
+    async def run(self):
+        # Async so pygbag (WebAssembly) can hand control back to the browser
+        # every frame; on the desktop asyncio.run() drives it the same way.
         while self.state != settings.GAME_STATE.QUIT:
             self.clock.tick(60)
             self.step(self.clock.get_rawtime())
+            await asyncio.sleep(0)
         pg.quit()
 
 
 def main():
-    TetrisApp().run()
+    asyncio.run(TetrisApp().run())
 
 
 if __name__ == "__main__":
