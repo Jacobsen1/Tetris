@@ -52,6 +52,8 @@ class TetrisApp:
     def new_figure(self):
         self.game.set_new_color()
         x, y, fig_mat = self.figures.select_figure()
+        if not self.game.fits(x, y, fig_mat):  # no room for the new piece
+            self.state = settings.GAME_STATE.LOST
         self.game.set_figure(x, y, fig_mat)
         return x, y, fig_mat
 
@@ -68,8 +70,9 @@ class TetrisApp:
             x, y = game.update_fig(x, y, fig_mat, "DOWN")
         elif event.key == pg.K_UP and game.check_collision(x, y, self.figures.get_next_fig_mat(), "ROTATE"):
             pg.key.set_repeat(0)
-            fig_mat = self.figures.rotate()
-            game.rotate(x, y, fig_mat)
+            new_mat = self.figures.rotate()
+            game.rotate(x, y, fig_mat, new_mat)
+            fig_mat = new_mat
         elif event.key == pg.K_ESCAPE:
             self.state = settings.GAME_STATE.QUIT
         elif event.key == pg.K_SPACE:

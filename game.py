@@ -85,7 +85,6 @@ class Game:
         for rect in cur_fig:
             if self.is_blocked(rect.move(dx * size, dy * size)):
                 if dir == "DOWN":
-                    self.check_finished_lines()
                     for fig_rect in cur_fig:
                         if fig_rect.x <= 0:
                             print("YOU LOST")
@@ -93,17 +92,23 @@ class Game:
                     self.finished_figures += cur_fig
                     for r, c in piece_cells(x, y, fig_mat):
                         self.grid[r][c].placed = True
+                    self.check_finished_lines()
                 return False
 
         return True
 
-    def rotate(self, x, y, fig_mat):
-        for i, row in enumerate(fig_mat):
-            for j, e in enumerate(row):
-                self.grid[x+i][y+j] = Fig.block(self.current_color) if e else Fig.empty()
+    def fits(self, x, y, fig_mat):
+        """True if the piece does not overlap landed blocks or the walls."""
+        return not any(self.is_blocked(rect) for rect in self.get_fig_from_fig_mat(x, y, fig_mat))
+
+    def rotate(self, x, y, old_mat, new_mat):
+        # only touch the piece's own cells, never the empty corners of its box
+        self.clear_figure(x, y, old_mat)
+        self.set_figure(x, y, new_mat)
 
     def draw_outlines(self, x, y, fig_mat):
         outline_x = self.find_outline_x(x, y, fig_mat)
+        landing_x = outline_x - 1
 
         for row in self.grid:
             for fig in row:
@@ -111,7 +116,9 @@ class Game:
                     fig.color = EMPTY_COLOR
                     fig.border = 1
 
-        for r, c in piece_cells(outline_x - 1, y, fig_mat):
+        if landing_x < x:  # piece already overlaps the stack (game over): no ghost
+            return
+        for r, c in piece_cells(landing_x, y, fig_mat):
             self.grid[r][c].color = self.current_color
             self.grid[r][c].border = 2
 
