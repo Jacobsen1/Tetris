@@ -8,7 +8,7 @@ import pygame as pg
 import pytest
 
 import settings
-from conftest import ROOT, post_key
+from conftest import LANDED_COLOR, ROOT, post_key
 
 BOTTOM = settings.BOARD_HEIGHT - 1
 
@@ -132,24 +132,47 @@ def test_piece_lands_by_falling_and_next_piece_spawns(game):
 
 def test_completed_line_is_cleared_and_stack_shifts_down(make_game):
     game = make_game("IO")
-    core = game.app.game
-
-    def fill(r, c):
-        core.grid[r][c].is_fig = True
-        core.grid[r][c].placed = True
-        core.grid[r][c].border = 0
-        core.finished_figures.append(core.cell_rect(r, c))
-
     # bottom row full except the four columns the I piece will drop into
     for c in [0, 1, 2, 3, 4, 9, 10, 11]:
-        fill(BOTTOM, c)
-    fill(BOTTOM - 1, 0)  # one block resting on top of the row
+        game.fill(BOTTOM, c)
+    game.fill(BOTTOM - 1, 0)  # one block resting on top of the row
     game.frame()
 
     game.press(pg.K_SPACE)
 
     assert game.placed_cells() == {(BOTTOM, 0)}
     assert game.pixel(BOTTOM, 1) == (0, 0, 0)
+
+
+def test_line_completed_by_falling_piece_is_cleared_when_it_lands(make_game):
+    game = make_game("IO")
+    for c in [0, 1, 2, 3, 4, 9, 10, 11]:
+        game.fill(BOTTOM, c)
+    game.fill(BOTTOM - 1, 0)
+    game.frame()
+
+    # let the I piece fall into the gap by gravity (no hard drop)
+    for _ in range(settings.BOARD_HEIGHT + 2):
+        game.frame(dt_ms=300)
+        if (BOTTOM, 5) in game.placed_cells():
+            break
+
+    assert game.placed_cells() == {(BOTTOM, 0)}
+    assert game.pixel(BOTTOM, 1) == (0, 0, 0)
+
+
+def test_rotating_next_to_landed_blocks_keeps_them(make_game):
+    game = make_game("T")
+    game.press(pg.K_UP, times=2)   # T pointing down: top row of its 3x3 box is empty
+    game.press(pg.K_DOWN, times=3)
+    x, y = game.app.x, game.app.y
+    game.fill(x, y)                # landed block in the empty top-left corner of the box
+    game.frame()
+
+    game.press(pg.K_UP)            # rotation itself is allowed: target cells are free
+
+    assert (x, y) in game.placed_cells()
+    assert game.pixel(x, y) == LANDED_COLOR
 
 
 # --- game over / quitting ------------------------------------------------------------
@@ -169,6 +192,21 @@ def test_stacking_to_the_top_ends_the_game(make_game):
 
     game.press(pg.K_ESCAPE)
     assert game.state == settings.GAME_STATE.QUIT
+
+
+def test_new_piece_spawning_into_blocks_ends_the_game(make_game):
+    game = make_game("OT")
+    game.fill(1, 7)                # block where the next piece (T) will appear
+    game.frame()
+    bottom_rows_before = {cell for cell in game.placed_cells() if cell[0] >= BOTTOM - 1}
+
+    game.press(pg.K_SPACE)         # O lands, T spawns overlapping (1, 7)
+    assert game.state == settings.GAME_STATE.LOST
+
+    landed = {cell for cell in game.placed_cells() if cell[0] >= BOTTOM - 1}
+    game.press(pg.K_SPACE)         # hard drop must not stamp the piece into the bottom rows
+    assert {cell for cell in game.placed_cells() if cell[0] >= BOTTOM - 1} == landed
+    assert bottom_rows_before == set()
 
 
 def test_escape_quits_while_playing(game):

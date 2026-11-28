@@ -30,6 +30,9 @@ class SequenceRng:
         return letter
 
 
+LANDED_COLOR = (200, 200, 200)
+
+
 def post_key(key):
     pg.event.post(pg.event.Event(pg.KEYDOWN, key=key, mod=0, unicode="", scancode=0))
 
@@ -52,6 +55,16 @@ class Driver:
 
     def frame(self, dt_ms=0):
         self.app.step(dt_ms)
+
+    # --- board setup -------------------------------------------------------
+    def fill(self, row, col, color=LANDED_COLOR):
+        """Put a landed block on the board (as if left there by earlier pieces)."""
+        core = self.app.game
+        fig = core.grid[row][col]
+        fig.is_fig = fig.placed = True
+        fig.border = 0
+        fig.color = color
+        core.finished_figures.append(core.cell_rect(row, col))
 
     # --- inspection ------------------------------------------------------
     @property
