@@ -1,3 +1,4 @@
+import asyncio
 """UI tests that drive the real pygame window headlessly with key events."""
 
 import os
@@ -223,5 +224,5 @@ def test_closing_window_quits(game):
 def test_run_loop_exits_cleanly_after_input(game, key):
     post_key(key)
     post_key(pg.K_ESCAPE)
-    game.app.run()  # returns once ESC is processed
+    asyncio.run(game.app.run())  # returns once ESC is processed
     assert not pg.display.get_init()
