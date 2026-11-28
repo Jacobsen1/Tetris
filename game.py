@@ -1,221 +1,176 @@
 import pygame as pg
-import random as rnd
-from Fig import Fig
-import copy
+
+from Fig import EMPTY_COLOR, Fig
 
 
 colors = [(255, 0, 0), (220, 255, 0), (0, 255, 50),
           (0, 0, 255), (0, 200, 255), (190, 0, 255)]
 
+# (row, column) offset per move direction; anything else (e.g. "ROTATE") is (0, 0)
+DIRECTIONS = {"DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1)}
+
+
+def piece_cells(x, y, fig_mat):
+    """Board (row, column) of every filled cell of ``fig_mat`` placed at (x, y)."""
+    for i, row in enumerate(fig_mat):
+        for j, e in enumerate(row):
+            if e == 1:
+                yield x + i, y + j
+
 
 class Game:
+    # Note: collision rects use the board row on the x axis and the column on the y axis.
+
     def __init__(self, settings) -> None:
-        self.grid = []
-        self.borders = []
+        self.settings = settings
         self.finished_figures = []
         self.color_ind = -1
         self.current_color = -1
-        self.settings = settings
 
-        for i in range(settings.BOARD_HEIGHT):
-            grid_row = []
-            for j in range(settings.BOARD_WIDTH ):
-                grid_row.append(Fig((75, 75, 75), 1, 3))
-            self.grid.append(grid_row)
-        for i in range(settings.BOARD_WIDTH):
-            self.borders.append(
-                pg.Rect((settings.BOARD_HEIGHT)*settings.CELL_SIZE, i * settings.CELL_SIZE, settings.CELL_SIZE, settings.CELL_SIZE))
-        for i in range(settings.BOARD_HEIGHT):
-            self.borders.append(
-                pg.Rect(i * settings.CELL_SIZE, -settings.CELL_SIZE, settings.CELL_SIZE, settings.CELL_SIZE))
-            self.borders.append(
-                pg.Rect(i * settings.CELL_SIZE, (settings.BOARD_WIDTH)*settings.CELL_SIZE, settings.CELL_SIZE, settings.CELL_SIZE))
+        rows, cols, size = settings.BOARD_HEIGHT, settings.BOARD_WIDTH, settings.CELL_SIZE
+        self.grid = [[Fig.empty() for _ in range(cols)] for _ in range(rows)]
+        # on-screen rect of every grid cell (column on x, row on y)
+        self.screen_rects = [[pg.Rect(c * size, r * size, size, size) for c in range(cols)]
+                             for r in range(rows)]
+
+        self.borders = [self.cell_rect(rows, c) for c in range(cols)]
+        for r in range(rows):
+            self.borders.append(self.cell_rect(r, -1))
+            self.borders.append(self.cell_rect(r, cols))
+
+    def cell_rect(self, row, col):
+        size = self.settings.CELL_SIZE
+        return pg.Rect(row * size, col * size, size, size)
+
+    def is_blocked(self, rect):
+        return rect.collidelist(self.finished_figures) != -1 or rect.collidelist(self.borders) != -1
 
     def set_new_color(self):
         self.color_ind += 1
-        self.current_color = colors[(self.color_ind) % len(colors)]
+        self.current_color = colors[self.color_ind % len(colors)]
+
+    @property
+    def next_color(self):
+        return colors[(self.color_ind + 1) % len(colors)]
 
     def set_figure(self, x, y, fig_mat):
-        for i, row in enumerate(fig_mat):
-            for j, e in enumerate(row):
-                if(e == 1):
-                    self.grid[x+i][y+j] = Fig(self.current_color, 0, 3, is_fig=True)
+        for r, c in piece_cells(x, y, fig_mat):
+            self.grid[r][c] = Fig.block(self.current_color)
+
+    def clear_figure(self, x, y, fig_mat):
+        for r, c in piece_cells(x, y, fig_mat):
+            self.grid[r][c] = Fig.empty()
 
     def draw(self, game_screen):
-
-        for i, row in enumerate(self.grid):
-            for j, fig in enumerate(row):
-                rect = pg.Rect(j * self.settings.CELL_SIZE, i *
-                               self.settings.CELL_SIZE, self.settings.CELL_SIZE, self.settings.CELL_SIZE)
-                pg.draw.rect(game_screen, fig.color, rect,
-                             fig.border, fig.border_rad)
+        for row, rect_row in zip(self.grid, self.screen_rects):
+            for fig, rect in zip(row, rect_row):
+                pg.draw.rect(game_screen, fig.color, rect, fig.border, fig.border_rad)
 
     def update_fig(self, x, y, fig_mat, dir):
-        newx, newy = x, y
-        
-        for i, row in enumerate(fig_mat):
-            for j, e in enumerate(row):
-                if(e == 1):
-                    self.grid[x+i][y+j] = Fig((75, 75, 75), 1, 3)
-
-        for i, row in enumerate(fig_mat):
-            for j, e in enumerate(row):
-                if(e == 1):
-                    if dir == "DOWN":
-                        self.grid[x+i+1][y+j] = Fig(self.current_color, 0, 3, is_fig=True)
-                        newx = x + 1
-                    elif dir == "LEFT":
-                        self.grid[x+i][y+j-1] = Fig(self.current_color, 0, 3, is_fig=True)
-                        newy = y - 1
-                    elif dir == "RIGHT":
-                        self.grid[x+i][y+j+1] = Fig(self.current_color, 0, 3, is_fig=True)
-                        newy = y + 1
-
-        return newx, newy
+        dx, dy = DIRECTIONS[dir]
+        self.clear_figure(x, y, fig_mat)
+        self.set_figure(x + dx, y + dy, fig_mat)
+        return x + dx, y + dy
 
     def check_collision(self, x, y, fig_mat, dir="DOWN"):
-        #print("Checking collision", dir)
+        """Return True if the piece can move in ``dir``.
+
+        A blocked downward move locks the piece in place, clears full lines
+        and flags game over when the piece is stuck in the top row.
+        """
         cur_fig = self.get_fig_from_fig_mat(x, y, fig_mat)
-        
+        dx, dy = DIRECTIONS.get(dir, (0, 0))
+        size = self.settings.CELL_SIZE
+
         for rect in cur_fig:
-            rect = rect.copy()
-            if dir == "DOWN":
-                rect.x += self.settings.CELL_SIZE
-            elif dir == "LEFT":
-                rect.y -= self.settings.CELL_SIZE
-            elif dir == "RIGHT":
-                rect.y += self.settings.CELL_SIZE
-            if rect.collidelist(self.finished_figures) != -1 or rect.collidelist(self.borders) != -1:
+            if self.is_blocked(rect.move(dx * size, dy * size)):
                 if dir == "DOWN":
-                    self.check_finished_lines()
-                    for rect in cur_fig:
-                        if rect.x <= 0:
+                    for fig_rect in cur_fig:
+                        if fig_rect.x <= 0:
                             print("YOU LOST")
                             self.settings.GAME_STATE.CURRENT = self.settings.GAME_STATE.LOST
                     self.finished_figures += cur_fig
-                    for i, row in enumerate(fig_mat):
-                        for j, e in enumerate(row):
-                            if(e == 1):
-                                self.grid[x+i][y+j].placed = True
-                    #print(self.print_grid(16))
+                    for r, c in piece_cells(x, y, fig_mat):
+                        self.grid[r][c].placed = True
+                    self.check_finished_lines()
                 return False
 
         return True
 
-    def rotate(self, x, y,fig_mat):
+    def fits(self, x, y, fig_mat):
+        """True if the piece does not overlap landed blocks or the walls."""
+        return not any(self.is_blocked(rect) for rect in self.get_fig_from_fig_mat(x, y, fig_mat))
 
-        for i, row in enumerate(fig_mat):
-            for j, e in enumerate(row):
-                if e == 0:
-                    self.grid[x+i][y+j] = Fig((75, 75, 75), 1, 3)
-                else:
-                    self.grid[x+i][y+j] = Fig(self.current_color, 0, 3, is_fig=True)
-
+    def rotate(self, x, y, old_mat, new_mat):
+        # only touch the piece's own cells, never the empty corners of its box
+        self.clear_figure(x, y, old_mat)
+        self.set_figure(x, y, new_mat)
 
     def draw_outlines(self, x, y, fig_mat):
         outline_x = self.find_outline_x(x, y, fig_mat)
+        landing_x = outline_x - 1
 
-        for i, row in enumerate(self.grid):
-            for j, e in enumerate(row):
-                fig = self.grid[i][j]
+        for row in self.grid:
+            for fig in row:
                 if fig.color == self.current_color and not fig.is_fig:
-                    fig.color = (75, 75, 75)
+                    fig.color = EMPTY_COLOR
                     fig.border = 1
 
-        for i, row in enumerate(fig_mat):
-            for j, e in enumerate(row):
-                if(e == 1):
-                    self.grid[outline_x-1+i][y+j].color = self.current_color
-                    self.grid[outline_x-1+i][y+j].border = 2
+        if landing_x < x:  # piece already overlaps the stack (game over): no ghost
+            return
+        for r, c in piece_cells(landing_x, y, fig_mat):
+            self.grid[r][c].color = self.current_color
+            self.grid[r][c].border = 2
 
-        
     def find_outline_x(self, x, y, fig_mat):
+        """First row offset (from ``x``) at which the piece would collide."""
         cur_fig = self.get_fig_from_fig_mat(x, y, fig_mat)
-        collided = False
         figx = x
-        while(not collided):
+        while not any(self.is_blocked(rect) for rect in cur_fig):
+            figx += 1
             for rect in cur_fig:
-                if rect.collidelist(self.finished_figures) != -1 or rect.collidelist(self.borders) != -1:
-                    collided = True
-            
-            if collided:
-                return figx
-                
-            else:
-                figx += 1
-                for rect in cur_fig:
-                    rect.x += self.settings.CELL_SIZE
-
-        return -1
+                rect.x += self.settings.CELL_SIZE
+        return figx
 
     def handle_space_event(self, x, y, fig_mat):
-        for i, row in enumerate(fig_mat):
-            for j, e in enumerate(row):
-                if(e == 1):
-                    self.grid[x+i][y+j] = Fig((75, 75, 75), 1, 3)
+        self.clear_figure(x, y, fig_mat)
 
         x = self.find_outline_x(x, y, fig_mat) - 1
-        cur_fig = self.get_fig_from_fig_mat(x, y, fig_mat)
-        self.finished_figures += cur_fig
-        for i, row in enumerate(fig_mat):
-            for j, e in enumerate(row):
-                if(e == 1):
-                    self.grid[x+i][y+j].placed = True
-                    self.grid[x+i][y+j].is_fig = True
-                    self.grid[x+i][y+j].border = 0
+        self.finished_figures += self.get_fig_from_fig_mat(x, y, fig_mat)
+        for r, c in piece_cells(x, y, fig_mat):
+            fig = self.grid[r][c]
+            fig.placed = True
+            fig.is_fig = True
+            fig.border = 0
         self.check_finished_lines()
-        #print(self.finished_figures)
-        #print(self.print_grid(16))
 
     def check_finished_lines(self):
+        size = self.settings.CELL_SIZE
         removed_rows = []
         for i, row in enumerate(self.grid):
             if all(fig.placed and fig.is_fig for fig in row):
                 removed_rows.append(i)
-                for j in range(len(row)):
-                    self.grid[i][j] = Fig((75, 75, 75), 1, 3)
+                self.grid[i][:] = [Fig.empty() for _ in row]
 
-                
-                for j, fig in reversed(list(enumerate(self.finished_figures))):
-                    if fig.x == i * self.settings.CELL_SIZE:
-                        self.finished_figures.pop(j)
-
-                for j, fig in enumerate(self.finished_figures):
-                    if fig.x < i * self.settings.CELL_SIZE:
-                        fig.x += self.settings.CELL_SIZE
+                self.finished_figures[:] = [rect for rect in self.finished_figures if rect.x != i * size]
+                for rect in self.finished_figures:
+                    if rect.x < i * size:
+                        rect.x += size
 
         for i in removed_rows:
             for j in range(i, -1, -1):
                 for k, fig in enumerate(self.grid[j]):
                     if fig.is_fig and fig.placed:
                         self.grid[j+1][k] = fig
-                        self.grid[j][k] = Fig((75, 75, 75), 1, 3)
+                        self.grid[j][k] = Fig.empty()
 
     def draw_next_fig(self, next_fig_screen, next_fig_mat):
-        x, y = (self.settings.WINDOW_WIDTH - self.settings.GAME_WIDTH) / 2 - (len(next_fig_mat) * self.settings.CELL_SIZE / 2) , 2 * self.settings.CELL_SIZE 
-        for i, row in enumerate(next_fig_mat):
-            for j, e in enumerate(row):
-                if(e == 1):
-                    rect = pg.Rect(j * self.settings.CELL_SIZE + x, i * self.settings.CELL_SIZE + y, self.settings.CELL_SIZE, self.settings.CELL_SIZE)
-                    pg.draw.rect(next_fig_screen, colors[(self.color_ind + 1) % len(colors)], rect)
-
-
-
-    def print_grid(self, start=0):
-        str = ''
-        for i in range(start, len(self.grid)):
-            for fig in self.grid[i]:
-                if fig.placed and fig.is_fig:
-                    str += 'X'
-                else:
-                    str += 'O'
-            str += '\n'
-        print(str)
+        size = self.settings.CELL_SIZE
+        x = (self.settings.WINDOW_WIDTH - self.settings.GAME_WIDTH) / 2 - (len(next_fig_mat) * size / 2)
+        y = 2 * size
+        for i, j in piece_cells(0, 0, next_fig_mat):
+            rect = pg.Rect(j * size + x, i * size + y, size, size)
+            pg.draw.rect(next_fig_screen, self.next_color, rect)
 
     def get_fig_from_fig_mat(self, x, y, fig_mat):
-        cur_fig = []
-        for i, row in enumerate(fig_mat):
-            for j, e in enumerate(row):
-                if(e == 1):
-                    cur_fig.append(pg.Rect((x+i)*self.settings.CELL_SIZE, (y+j)*self.settings.CELL_SIZE, self.settings.CELL_SIZE, self.settings.CELL_SIZE))
-        return cur_fig
+        return [self.cell_rect(r, c) for r, c in piece_cells(x, y, fig_mat)]

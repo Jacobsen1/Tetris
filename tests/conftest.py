@@ -30,6 +30,13 @@ class SequenceRng:
         return letter
 
 
+LANDED_COLOR = (200, 200, 200)
+
+
+def post_key(key):
+    pg.event.post(pg.event.Event(pg.KEYDOWN, key=key, mod=0, unicode="", scancode=0))
+
+
 class Driver:
     """Small helper API for driving the real game loop like a player."""
 
@@ -39,7 +46,7 @@ class Driver:
     # --- input -----------------------------------------------------------
     def press(self, key, times=1):
         for _ in range(times):
-            pg.event.post(pg.event.Event(pg.KEYDOWN, key=key, mod=0, unicode="", scancode=0))
+            post_key(key)
             self.frame()
 
     def post(self, event_type, **attrs):
@@ -49,35 +56,38 @@ class Driver:
     def frame(self, dt_ms=0):
         self.app.step(dt_ms)
 
+    # --- board setup -------------------------------------------------------
+    def fill(self, row, col, color=LANDED_COLOR):
+        """Put a landed block on the board (as if left there by earlier pieces)."""
+        core = self.app.game
+        fig = core.grid[row][col]
+        fig.is_fig = fig.placed = True
+        fig.border = 0
+        fig.color = color
+        core.finished_figures.append(core.cell_rect(row, col))
+
     # --- inspection ------------------------------------------------------
     @property
     def state(self):
         return settings.GAME_STATE.CURRENT
 
-    def active_cells(self):
+    def _cells(self, predicate):
         return {
             (r, c)
             for r, row in enumerate(self.app.game.grid)
             for c, fig in enumerate(row)
-            if fig.is_fig and not fig.placed
+            if predicate(fig)
         }
 
+    def active_cells(self):
+        return self._cells(lambda fig: fig.is_fig and not fig.placed)
+
     def placed_cells(self):
-        return {
-            (r, c)
-            for r, row in enumerate(self.app.game.grid)
-            for c, fig in enumerate(row)
-            if fig.is_fig and fig.placed
-        }
+        return self._cells(lambda fig: fig.is_fig and fig.placed)
 
     def ghost_cells(self):
         color = self.app.game.current_color
-        return {
-            (r, c)
-            for r, row in enumerate(self.app.game.grid)
-            for c, fig in enumerate(row)
-            if not fig.is_fig and fig.color == color and fig.border == 2
-        }
+        return self._cells(lambda fig: not fig.is_fig and fig.color == color and fig.border == 2)
 
     def pixel(self, row, col):
         """Colour at the centre of a board cell as rendered on screen."""
